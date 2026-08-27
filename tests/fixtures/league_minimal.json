@@ -1,0 +1,60 @@
+{
+  "id": 12345,
+  "name": "Example League",
+  "members": [
+    {"id": "owner-1", "firstName": "Alex", "lastName": "Manager"},
+    {"id": "owner-2", "displayName": "Rival Manager"}
+  ],
+  "settings": {
+    "scheduleSettings": {"matchupPeriodCount": 14, "playoffTeamCount": 6},
+    "rosterSettings": {"lineupSlotCounts": {"0": 1, "2": 2}},
+    "scoringSettings": {
+      "scoringType": "H2H_POINTS",
+      "scoringItems": [{"statId": 53, "points": 0.1}]
+    }
+  },
+  "status": {"currentMatchupPeriod": 1},
+  "teams": [
+    {
+      "id": 1,
+      "name": "The Examples",
+      "abbrev": "EX",
+      "owners": ["owner-1"],
+      "playoffSeed": 2,
+      "record": {"overall": {"wins": 1, "losses": 0, "ties": 0, "pointsFor": 101.5, "pointsAgainst": 95.0}},
+      "roster": {
+        "entries": [
+          {
+            "lineupSlotId": 0,
+            "acquisitionType": "DRAFT",
+            "playerPoolEntry": {
+              "player": {
+                "id": 9001,
+                "fullName": "Example Quarterback",
+                "defaultPositionId": 1,
+                "proTeamId": 10,
+                "eligibleSlots": [0, 20],
+                "injuryStatus": "ACTIVE"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "name": "The Rivals",
+      "abbrev": "RIV",
+      "owners": ["owner-2"],
+      "record": {"overall": {"wins": 0, "losses": 1, "ties": 0, "pointsFor": 95.0, "pointsAgainst": 101.5}}
+    }
+  ],
+  "schedule": [
+    {
+      "matchupPeriodId": 1,
+      "winner": "HOME",
+      "home": {"teamId": 1, "totalPoints": 101.5},
+      "away": {"teamId": 2, "totalPoints": 95.0}
+    }
+  ]
+}
