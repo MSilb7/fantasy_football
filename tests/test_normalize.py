@@ -16,8 +16,12 @@ class NormalizeTests(unittest.TestCase):
             fetched_at="2026-08-27T12:00:00+00:00",
         )
 
-        self.assertEqual(result["schema_version"], 1)
+        self.assertEqual(result["schema_version"], 2)
         self.assertEqual(result["league"]["team_count"], 2)
+        self.assertEqual(result["league"]["name"], "Example League")
+        self.assertEqual(result["draft"]["type"], "SNAKE")
+        self.assertEqual(result["draft"]["pick_order"], [1, 2])
+        self.assertFalse(result["draft"]["drafted"])
         self.assertEqual(result["teams"][0]["owner_names"], ["Alex Manager"])
         self.assertEqual(result["teams"][0]["roster"][0]["player_id"], 9001)
         self.assertEqual(result["matchups"][0]["home"]["total_points"], 101.5)

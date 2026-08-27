@@ -1,8 +1,11 @@
-# Copy this file to config/leagues.toml. This file contains league metadata,
-# not ESPN credentials; credentials belong in .env or your shell environment.
+# Manual fallback: normally `fantasy-assistant discover-leagues --write-config`
+# generates config/leagues.toml. This file contains league metadata, not ESPN
+# credentials; credentials belong in .env or your shell environment.
 
 [leagues.primary]
 league_id = "YOUR_LEAGUE_ID"
+league_name = "YOUR_LEAGUE_NAME"
+team_id = "YOUR_TEAM_ID"
 team_name = "YOUR_TEAM_NAME"
 seasons = [2026]
 

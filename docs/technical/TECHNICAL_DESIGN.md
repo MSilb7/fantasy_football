@@ -22,7 +22,8 @@ planned. The system does not execute moves on ESPN and has no remote service or 
 | `src/fantasy_assistant/payouts.py` | Allocate the total buy-in pot across every payout | Financial calculation and conservation invariant | `PayoutRules`, `calculate_payout_plan` | US-1.1 | BUILT |
 | `src/fantasy_assistant/config.py` | Load local league metadata and private ESPN cookies | Configuration validation and secret-name compatibility | `load_league_profiles`, `load_espn_credentials` | US-1.2 | BUILT |
 | `src/fantasy_assistant/espn/` | Isolate ESPN URLs, views, cookies, filters, and transport failures | ESPN source contract | `ESPNClient.fetch_league` | US-1.3 | BUILT |
-| `src/fantasy_assistant/ingestion/normalize.py` | Convert ESPN payloads to a stable source-neutral snapshot | Normalized schema v1 | `normalize_league_snapshot` | US-1.3 | BUILT |
+| `src/fantasy_assistant/espn/discovery.py` | Discover football league/team memberships without known league IDs | Authenticated fan-profile parsing | `ESPNLeagueDiscoveryClient.discover_football_leagues` | US-1.2 | BUILT |
+| `src/fantasy_assistant/ingestion/normalize.py` | Convert ESPN payloads to a stable source-neutral snapshot | Normalized schema v2 | `normalize_league_snapshot` | US-1.3 | BUILT |
 | `src/fantasy_assistant/ingestion/store.py` | Persist immutable raw and normalized observations | Timestamped local JSON snapshots | `SnapshotStore.save` | US-1.3 | BUILT |
 | `src/fantasy_assistant/cli.py` | Expose safe setup checks and sync orchestration | Human/agent command contract | `doctor`, `sync-league` | US-1.2, US-1.3 | BUILT |
 | Future player-source adapters | Ingest stats, projections, news, injuries, and ADP | Source-specific evidence | Provider contracts to be decided | US-1.4 | PLANNED |
@@ -33,7 +34,7 @@ planned. The system does not execute moves on ESPN and has no remote service or 
 
 - ESPN owns the upstream league state. Each raw response is stored unchanged under
   `data/raw/espn/<league>/<season>/<timestamp>.json` and is append-only evidence.
-- Normalization owns schema v1 under the parallel `data/normalized/` path. Exact fields are defined
+- Normalization owns schema v2 under the parallel `data/normalized/` path. Exact fields are defined
   by `normalize_league_snapshot` and pinned by `tests/fixtures/league_minimal.json`.
 - `config/leagues.toml` owns local league identity and team mapping. It is ignored because those
   details may be private even though they are not authentication secrets.
@@ -51,9 +52,10 @@ planned. The system does not execute moves on ESPN and has no remote service or 
 default view set centralizes the currently needed team, roster, settings, matchup, score, and
 standings data. Transport failures raise sanitized `ESPNAPIError` messages.
 
-Normalized schema v1 contains snapshot metadata, league identity/status, selected rules, members,
-teams with current roster entries, and matchups. ESPN identifiers are retained for joins, but later
-decision modules should not reach back into raw dictionaries for ordinary fields.
+Normalized schema v2 contains snapshot metadata, league identity/status, draft state/settings,
+selected rules, members, teams with current roster entries, and matchups. ESPN identifiers are
+retained for joins, but later decision modules should not reach back into raw dictionaries for
+ordinary fields. League names use `settings.name` when ESPN omits the top-level `name` field.
 
 The CLI returns zero on success and two on configuration, transport, or storage errors. `doctor`
 validates presence, not whether ESPN accepts an expiring cookie. `sync-league` is the first live
@@ -64,12 +66,14 @@ production-complete.
 
 ### League onboarding and sync
 
-1. The user copies the example profile and credential files and fills them locally.
-2. `doctor` parses profiles and confirms both credential values are present without displaying them.
-3. `sync-league` selects a profile and asks the ESPN adapter for one multi-view payload.
-4. The raw response is normalized in memory.
-5. The store writes raw and normalized JSON atomically to timestamped paths.
-6. Later decision modules load normalized snapshots and state their source timestamp.
+1. The user provides ESPN cookies through `.env` or the environment.
+2. `discover-leagues --write-config` reads the authenticated fan profile, retains only football
+   league/team identity, and writes non-secret local profiles.
+3. `doctor` parses profiles and confirms both credential values are present without displaying them.
+4. `sync-league` selects a profile and asks the ESPN adapter for one multi-view payload.
+5. The raw response is normalized in memory.
+6. The store writes raw and normalized JSON atomically to timestamped paths.
+7. Later decision modules load normalized snapshots and state their source timestamp.
 
 Failure before step 5 produces no completed snapshot. The store writes through a temporary file and
 an atomic same-directory replacement so interrupted writes do not masquerade as valid observations.
@@ -85,6 +89,8 @@ bundle → user decides → retain decision and eventual outcome. No step after 
 - ESPN cookies grant private-league access and are high-sensitivity secrets. They stay in ignored
   local configuration, travel only in the HTTPS `Cookie` request header, and are redacted from object
   representations and errors.
+- The fan profile contains preferences beyond fantasy football. Discovery does not persist the raw
+  profile and retains only football league/team identity plus league-level draft metadata.
 - ESPN and future third-party payloads are untrusted external input. Normalization tolerates missing
   optional fields; new shapes require fixture-backed changes.
 - League data can expose names, rosters, and manager behavior. Raw, normalized, preference, and
@@ -102,6 +108,7 @@ Operator commands:
 
 ```bash
 PYTHONPATH=src python -m fantasy_assistant.cli doctor
+PYTHONPATH=src python -m fantasy_assistant.cli discover-leagues --season 2026 --write-config
 PYTHONPATH=src python -m fantasy_assistant.cli sync-league --league primary --season 2026
 PYTHONPATH=src python -m unittest discover -s tests -v
 node scripts/compounding-status.mjs
@@ -117,8 +124,9 @@ the schema changes. Retention and backup policy are not yet defined.
 - A synthetic ESPN fixture pins current response assumptions without leaking a real league.
 - A deterministic payout fixture proves exact allocations and total-pot conservation, while a
   notebook contract test prevents the 2025 presentation from reintroducing copied payout math.
-- No live contract test exists because it would require expiring private credentials. The onboarding
-  milestone should capture a sanitized fixture from each materially different league configuration.
+- The discovery parser and request contract use a sanitized fan-profile fixture. Live validation on
+  2026-08-27 covered three private football leagues with 10- and 12-team snake-draft configurations;
+  live payloads remain local and ignored.
 - Draft, trade, waiver, lineup, and behavioral evaluation harnesses are not yet built.
 
 ## 9. Active decisions
@@ -132,7 +140,6 @@ the schema changes. Retention and backup policy are not yet defined.
 
 | Item | Product link | Current state | Target state | Tracking |
 |---|---|---|---|---|
-| Real ESPN contract validation | US-1.3 | Synthetic fixture only | Sanitized fixtures for actual league shapes | PRD roadmap 1 |
 | Player evidence ingestion | US-1.4 | No provider contract | Timestamped multi-source evidence with identity reconciliation | PRD roadmap 2 |
 | Queryable history | US-1.4, US-4.* | JSON snapshots only | Local analytical store with migrations | Open decision |
 | Draft engine | US-2.* | Absent | League-aware, stateful draft recommendations | PRD roadmap 3 |
@@ -144,7 +151,8 @@ the schema changes. Retention and backup policy are not yet defined.
 | Package and optional dependencies | `pyproject.toml` |
 | Payout allocation contract | `src/fantasy_assistant/payouts.py` and `tests/fixtures/payout_plan.json` |
 | ESPN request contract | `src/fantasy_assistant/espn/client.py` |
-| Normalized schema v1 | `src/fantasy_assistant/ingestion/normalize.py` and its fixture test |
+| League discovery contract | `src/fantasy_assistant/espn/discovery.py` and `tests/fixtures/fan_profile_minimal.json` |
+| Normalized schema v2 | `src/fantasy_assistant/ingestion/normalize.py` and its fixture test |
 | Snapshot path contract | `src/fantasy_assistant/ingestion/store.py` |
 | Local runtime state | ignored `config/leagues.toml`, `data/`, and `apps/payouts/outputs/` |
 | Test contract | `PYTHONPATH=src python -m unittest discover -s tests -v` |

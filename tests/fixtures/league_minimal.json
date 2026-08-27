@@ -1,11 +1,19 @@
 {
   "id": 12345,
-  "name": "Example League",
+  "draftDetail": {"drafted": false, "inProgress": false},
   "members": [
     {"id": "owner-1", "firstName": "Alex", "lastName": "Manager"},
     {"id": "owner-2", "displayName": "Rival Manager"}
   ],
   "settings": {
+    "name": "Example League",
+    "draftSettings": {
+      "date": 1788390000000,
+      "keeperCount": 0,
+      "pickOrder": [1, 2],
+      "timePerSelection": 90,
+      "type": "SNAKE"
+    },
     "scheduleSettings": {"matchupPeriodCount": 14, "playoffTeamCount": 6},
     "rosterSettings": {"lineupSlotCounts": {"0": 1, "2": 2}},
     "scoringSettings": {

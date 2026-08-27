@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _owner_name(member: Mapping[str, Any]) -> str:
@@ -105,6 +105,8 @@ def normalize_league_snapshot(
     schedule_settings = settings.get("scheduleSettings", {})
     roster_settings = settings.get("rosterSettings", {})
     scoring_settings = settings.get("scoringSettings", {})
+    draft_settings = settings.get("draftSettings", {})
+    draft_detail = payload.get("draftDetail", {})
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -113,9 +115,23 @@ def normalize_league_snapshot(
         "season": season,
         "league": {
             "league_id": payload.get("id"),
-            "name": payload.get("name"),
+            "name": payload.get("name") or settings.get("name"),
             "team_count": len(teams),
             "status": payload.get("status", {}),
+        },
+        "draft": {
+            "drafted": draft_detail.get("drafted"),
+            "in_progress": draft_detail.get("inProgress"),
+            "date": draft_settings.get("date"),
+            "available_date": draft_settings.get("availableDate"),
+            "type": draft_settings.get("type"),
+            "auction_budget": draft_settings.get("auctionBudget"),
+            "keeper_count": draft_settings.get("keeperCount"),
+            "keeper_count_future": draft_settings.get("keeperCountFuture"),
+            "keeper_order_type": draft_settings.get("keeperOrderType"),
+            "pick_order": draft_settings.get("pickOrder", []),
+            "time_per_selection": draft_settings.get("timePerSelection"),
+            "trading_enabled": draft_settings.get("isTradingEnabled"),
         },
         "settings": {
             "matchup_period_count": schedule_settings.get("matchupPeriodCount"),
