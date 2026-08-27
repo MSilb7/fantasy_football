@@ -50,6 +50,44 @@ class ESPNClientTests(unittest.TestCase):
         )
         self.assertIn("espn_s2=private-cookie", request.get_header("Cookie"))
 
+    def test_builds_player_evidence_request_with_league_relative_filter(self) -> None:
+        observed: dict[str, object] = {}
+
+        def opener(request: object, *, timeout: float) -> _Response:
+            observed["request"] = request
+            return _Response({"players": []})
+
+        client = ESPNClient(
+            ESPNCredentials(espn_s2="private-cookie", swid="{private-id}"),
+            opener=opener,
+        )
+        result = client.fetch_player_pool(season=2026, league_id="12345", limit=2500)
+
+        request = observed["request"]
+        fantasy_filter = json.loads(request.get_header("X-fantasy-filter"))
+        self.assertEqual(result, {"players": []})
+        self.assertIn("view=kona_player_info", request.full_url)
+        self.assertEqual(fantasy_filter["players"]["limit"], 2500)
+        self.assertEqual(
+            fantasy_filter["players"]["filterStatus"]["value"],
+            ["FREEAGENT", "WAIVERS", "ONTEAM"],
+        )
+
+    def test_draft_request_uses_pick_level_view(self) -> None:
+        observed: dict[str, object] = {}
+
+        def opener(request: object, *, timeout: float) -> _Response:
+            observed["request"] = request
+            return _Response({"draftDetail": {"picks": []}})
+
+        client = ESPNClient(
+            ESPNCredentials(espn_s2="private-cookie", swid="{private-id}"),
+            opener=opener,
+        )
+        client.fetch_draft(season=2025, league_id="12345")
+
+        self.assertIn("view=mDraftDetail", observed["request"].full_url)
+
 
 if __name__ == "__main__":
     unittest.main()

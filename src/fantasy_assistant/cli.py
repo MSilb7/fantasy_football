@@ -22,7 +22,12 @@ from fantasy_assistant.espn import (
     ESPNClient,
     ESPNLeagueDiscoveryClient,
 )
-from fantasy_assistant.ingestion import SnapshotStore, normalize_league_snapshot
+from fantasy_assistant.ingestion import (
+    SnapshotStore,
+    normalize_draft_snapshot,
+    normalize_league_snapshot,
+    normalize_player_evidence,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -53,6 +58,25 @@ def _parser() -> argparse.ArgumentParser:
     sync.add_argument("--league", required=True, help="Profile name from config/leagues.toml.")
     sync.add_argument("--season", required=True, type=int)
     sync.add_argument("--data-dir", type=Path, default=Path("data"))
+
+    sync_draft = subcommands.add_parser(
+        "sync-draft",
+        help="Fetch and store pick-level ESPN draft state for one league season.",
+    )
+    sync_draft.add_argument("--league", required=True, help="Profile name from config/leagues.toml.")
+    sync_draft.add_argument("--season", required=True, type=int)
+    sync_draft.add_argument("--data-dir", type=Path, default=Path("data"))
+
+    sync_players = subcommands.add_parser(
+        "sync-player-evidence",
+        help="Fetch and store ESPN availability, ADP, ranks, projections, and stats.",
+    )
+    sync_players.add_argument(
+        "--league", required=True, help="Profile name from config/leagues.toml."
+    )
+    sync_players.add_argument("--season", required=True, type=int)
+    sync_players.add_argument("--limit", type=int, default=5000)
+    sync_players.add_argument("--data-dir", type=Path, default=Path("data"))
     return parser
 
 
@@ -131,11 +155,7 @@ def _discover_leagues(args: argparse.Namespace) -> int:
 
 
 def _sync_league(args: argparse.Namespace) -> int:
-    profiles = load_league_profiles(args.config)
-    if args.league not in profiles:
-        available = ", ".join(sorted(profiles))
-        raise ConfigurationError(f"Unknown league profile {args.league!r}. Available: {available}")
-    profile = profiles[args.league]
+    profile = _load_profile(args)
     credentials = load_espn_credentials(dotenv_path=args.dotenv)
     fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat()
     raw = ESPNClient(credentials).fetch_league(
@@ -161,6 +181,77 @@ def _sync_league(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_profile(args: argparse.Namespace) -> LeagueProfile:
+    profiles = load_league_profiles(args.config)
+    if args.league not in profiles:
+        available = ", ".join(sorted(profiles))
+        raise ConfigurationError(f"Unknown league profile {args.league!r}. Available: {available}")
+    return profiles[args.league]
+
+
+def _sync_draft(args: argparse.Namespace) -> int:
+    profile = _load_profile(args)
+    credentials = load_espn_credentials(dotenv_path=args.dotenv)
+    fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+    raw = ESPNClient(credentials).fetch_draft(
+        season=args.season,
+        league_id=profile.league_id,
+    )
+    normalized = normalize_draft_snapshot(raw, season=args.season, fetched_at=fetched_at)
+    paths = SnapshotStore(args.data_dir).save(
+        source="espn-draft",
+        league_id=profile.league_id,
+        season=args.season,
+        fetched_at=fetched_at,
+        raw=raw,
+        normalized=normalized,
+    )
+    draft = normalized["draft"]
+    state = (
+        "complete"
+        if draft["drafted"]
+        else "in progress"
+        if draft["in_progress"]
+        else "not started"
+    )
+    print(
+        f"Saved {draft['pick_count']} selections across {draft['slot_count']} draft slots; "
+        f"draft is {state}."
+    )
+    print(f"Raw: {paths.raw}")
+    print(f"Normalized: {paths.normalized}")
+    return 0
+
+
+def _sync_player_evidence(args: argparse.Namespace) -> int:
+    profile = _load_profile(args)
+    credentials = load_espn_credentials(dotenv_path=args.dotenv)
+    fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+    raw = ESPNClient(credentials).fetch_player_pool(
+        season=args.season,
+        league_id=profile.league_id,
+        limit=args.limit,
+    )
+    normalized = normalize_player_evidence(
+        raw,
+        season=args.season,
+        fetched_at=fetched_at,
+        league_id=profile.league_id,
+    )
+    paths = SnapshotStore(args.data_dir).save(
+        source="espn-player-evidence",
+        league_id=profile.league_id,
+        season=args.season,
+        fetched_at=fetched_at,
+        raw=raw,
+        normalized=normalized,
+    )
+    print(f"Saved evidence for {normalized['player_count']} players.")
+    print(f"Raw: {paths.raw}")
+    print(f"Normalized: {paths.normalized}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -170,6 +261,10 @@ def main(argv: list[str] | None = None) -> int:
             return _discover_leagues(args)
         if args.command == "sync-league":
             return _sync_league(args)
+        if args.command == "sync-draft":
+            return _sync_draft(args)
+        if args.command == "sync-player-evidence":
+            return _sync_player_evidence(args)
     except (ConfigurationError, ESPNAPIError, OSError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2

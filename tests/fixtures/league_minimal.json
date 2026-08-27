@@ -10,6 +10,7 @@
     "draftSettings": {
       "date": 1788390000000,
       "keeperCount": 0,
+      "orderType": "DRAFT_START",
       "pickOrder": [1, 2],
       "timePerSelection": 90,
       "type": "SNAKE"

@@ -56,8 +56,10 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 - Fetch reusable ESPN league snapshots through one client — **BUILT**
 - Normalize league settings, managers, teams, rosters, and matchups — **BUILT**
 - Store timestamped raw and normalized snapshots locally — **BUILT**
-- Ingest historical transactions, draft picks, free agents, projections, injuries, and player news —
-  **UNBUILT**
+- Ingest current and historical ESPN draft selections — **BUILT**
+- Ingest ESPN availability, ADP, draft ranks, projections, injuries, and prior-season actual stats —
+  **BUILT**
+- Ingest historical transactions and player news — **UNBUILT**
 - Detect snapshot changes and maintain a queryable longitudinal league history — **UNBUILT**
 
 ### Decision support
@@ -85,7 +87,7 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 - **US-1.3 · Refresh league context** — As the user, I can fetch a timestamped league snapshot that
   includes rules, teams, rosters, owners, and matchups. — **BUILT**
 - **US-1.4 · Refresh player evidence** — As the user, I can ingest current and historical stats,
-  projections, availability, and news with source and timestamp metadata. — **UNBUILT**
+  projections, availability, and news with source and timestamp metadata. — **PARTIAL**
 - **US-2.1 · Prepare a draft** — As the user, I can receive a league-specific tiered draft plan after
   providing draft slot, keepers, and strategy preferences. — **UNBUILT**
 - **US-2.2 · Run a live draft** — As picks occur, I can update draft state and get a short list of
@@ -105,8 +107,9 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 
 1. **League onboarding and data contracts** — auto-discovery and real 2026 league validation are
    built; continue capturing materially new ESPN shapes as fixtures. Supports US-1.2 and US-1.3.
-2. **Player evidence layer** — select and ingest authoritative stats, projections, injuries, ADP, and
-   news; attach source, as-of time, and confidence. Supports US-1.4.
+2. **Player evidence layer** — ESPN baseline availability, ADP, ranks, projections, injuries, and
+   prior-season actuals are built; add news, deeper history, source comparison, identity
+   reconciliation, and confidence. Supports US-1.4.
 3. **Draft workspace** — add draft state, positional scarcity/value models, tiers, roster constraints,
    and live pick updates. Supports US-2.1 and US-2.2 and is the first decision workflow.
 4. **In-season decisions** — implement lineup, waiver, and trade analysis on the same context model.
@@ -121,12 +124,15 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 - Local league metadata: ignored `config/leagues.toml`; template at `config/leagues.example.toml`.
 - Raw ESPN observations: ignored `data/raw/espn/<league>/<season>/<timestamp>.json`.
 - Normalized observations: ignored `data/normalized/espn/<league>/<season>/<timestamp>.json`.
+- Pick-level draft observations: ignored `data/{raw,normalized}/espn-draft/...`.
+- ESPN player evidence: ignored `data/{raw,normalized}/espn-player-evidence/...`.
 - Generated payout reports: ignored `apps/payouts/outputs/`.
 - Queue status: `node scripts/compounding-status.mjs`.
 
 ## 7. Open product decisions
 
-- Which external sources should complement ESPN for stats, projections, injuries, ADP, and news?
+- Which external sources should complement ESPN's baseline for deeper historical stats, projections,
+  injuries, ADP, and news?
 - What are the user's draft philosophy, risk tolerance, keeper rules, and trade/waiver preferences?
 - Should prompt interaction remain repository-local, or later gain a dedicated chat/UI surface?
 
