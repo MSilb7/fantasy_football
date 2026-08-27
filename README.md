@@ -32,14 +32,19 @@ cp .env.example .env
 PYTHONPATH=src python -m fantasy_assistant.cli discover-leagues --season 2026 --write-config
 PYTHONPATH=src python -m fantasy_assistant.cli doctor
 PYTHONPATH=src python -m fantasy_assistant.cli sync-league --league primary --season 2026
+PYTHONPATH=src python -m fantasy_assistant.cli sync-draft --league primary --season 2026
+PYTHONPATH=src python -m fantasy_assistant.cli sync-player-evidence --league primary --season 2026
 ```
 
 `discover-leagues` reports league/team identity and draft metadata but never writes cookies. If ESPN
 discovery is unavailable, copy `config/leagues.example.toml` to `config/leagues.toml` and fill it in
 manually. Replace `primary` in the sync command with a generated profile name shown by `doctor`.
 
-The sync stores both the untouched ESPN response and a source-neutral normalized snapshot. Neither
-local league data nor credentials are committed.
+Each sync stores both the untouched ESPN response and a source-neutral normalized snapshot. League
+sync retains each league's scoring, roster, keeper, and draft-order settings. Draft sync separates
+ESPN's unfilled future slots from real selections, and player-evidence sync captures league-relative
+availability, ADP, ranks, projections, injury state, and historical actual stats. Neither local
+league data nor credentials are committed.
 
 To install the command and optional payout notebook dependencies:
 
