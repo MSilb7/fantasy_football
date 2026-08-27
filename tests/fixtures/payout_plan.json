@@ -1,0 +1,20 @@
+{
+  "inputs": {
+    "num_teams": 12,
+    "regular_season_weeks": 14,
+    "buy_in": "50",
+    "weekly_highs_share": "0.20",
+    "first_place_share": "0.75",
+    "second_place_share": "0.25",
+    "third_place_payout": "50"
+  },
+  "expected": {
+    "total_pot": "600",
+    "weekly_highs_pot": "120.00",
+    "first_second_pool": "430.00",
+    "first_place_payout": "322.5000",
+    "second_place_payout": "107.5000",
+    "third_place_payout": "50",
+    "total_distributed": "600.0000"
+  }
+}
