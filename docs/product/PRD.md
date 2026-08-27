@@ -44,7 +44,7 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 ### Existing payout application
 
 - Fetch ESPN teams, matchups, scores, standings, and settings in annual notebooks — **PARTIAL**
-- Calculate weekly-high and playoff payout reports — **PARTIAL** (known fixed-third-place issue)
+- Calculate fully funded weekly-high and playoff payout reports — **BUILT**
 - Export an auditable multi-tab workbook — **BUILT**
 
 ### Shared data foundation
@@ -77,7 +77,7 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 ## 4. User stories
 
 - **US-1.1 · Preserve payouts** — As the commissioner, I can run the historical payout workflow
-  independently from decision-support development. — **PARTIAL**
+  independently from decision-support development. — **BUILT**
 - **US-1.2 · Onboard a league** — As the user, I can provide league ID, team identity, seasons, and
   private credentials once, then validate the setup safely. — **BUILT**
 - **US-1.3 · Refresh league context** — As the user, I can fetch a timestamped league snapshot that
@@ -111,8 +111,8 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
    Supports US-3.1 through US-3.3.
 5. **Preference and manager learning** — retain decisions and outcomes, then introduce calibrated
    behavioral features with uncertainty. Supports US-4.1 and US-4.2.
-6. **Payout extraction** — regression-test and migrate payout logic from the notebook into the shared
-   package while retaining the notebook-facing workflow. Supports US-1.1.
+6. **Payout maintenance** — keep the shared, regression-tested allocation contract and preserved
+   notebook workflow current as league rules change. Supports US-1.1.
 
 ## 6. Live state
 

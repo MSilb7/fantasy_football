@@ -18,7 +18,8 @@ planned. The system does not execute moves on ESPN and has no remote service or 
 
 | Component | Responsibility | Owns | Interface | Product links | Status |
 |---|---|---|---|---|---|
-| `apps/payouts/` | Preserve annual payout calculation and workbook workflow | Notebook-facing financial rules and reports | Jupyter notebooks | US-1.1 | PARTIAL |
+| `apps/payouts/` | Preserve annual payout workbook workflow | Notebook presentation, ESPN retrieval, and reports | Jupyter notebooks | US-1.1 | BUILT |
+| `src/fantasy_assistant/payouts.py` | Allocate the total buy-in pot across every payout | Financial calculation and conservation invariant | `PayoutRules`, `calculate_payout_plan` | US-1.1 | BUILT |
 | `src/fantasy_assistant/config.py` | Load local league metadata and private ESPN cookies | Configuration validation and secret-name compatibility | `load_league_profiles`, `load_espn_credentials` | US-1.2 | BUILT |
 | `src/fantasy_assistant/espn/` | Isolate ESPN URLs, views, cookies, filters, and transport failures | ESPN source contract | `ESPNClient.fetch_league` | US-1.3 | BUILT |
 | `src/fantasy_assistant/ingestion/normalize.py` | Convert ESPN payloads to a stable source-neutral snapshot | Normalized schema v1 | `normalize_league_snapshot` | US-1.3 | BUILT |
@@ -38,8 +39,9 @@ planned. The system does not execute moves on ESPN and has no remote service or 
   details may be private even though they are not authentication secrets.
 - `.env` or the process environment owns ESPN cookies. Cookie values never enter stored snapshots,
   logs, config profiles, or exception text.
-- The payout notebooks own their current financial calculations until a tested package extraction
-  replaces them. Generated reports are ignored local artifacts.
+- `src/fantasy_assistant/payouts.py` owns financial allocation. The fixed third-place amount and
+  weekly-highs pool are removed from total buy-ins before first and second split the remainder.
+  Generated notebook reports are ignored local artifacts.
 - No query database exists yet. A longitudinal store must be chosen before transaction history,
   recommendation history, or behavioral features are implemented.
 
@@ -113,9 +115,10 @@ the schema changes. Retention and backup policy are not yet defined.
 - Unit tests cover profile/credential precedence, redaction, normalization, immutable snapshot paths,
   and path safety.
 - A synthetic ESPN fixture pins current response assumptions without leaking a real league.
+- A deterministic payout fixture proves exact allocations and total-pot conservation, while a
+  notebook contract test prevents the 2025 presentation from reintroducing copied payout math.
 - No live contract test exists because it would require expiring private credentials. The onboarding
   milestone should capture a sanitized fixture from each materially different league configuration.
-- Payout notebooks lack regression fixtures; no payout math should change before that gap is closed.
 - Draft, trade, waiver, lineup, and behavioral evaluation harnesses are not yet built.
 
 ## 9. Active decisions
@@ -133,13 +136,13 @@ the schema changes. Retention and backup policy are not yet defined.
 | Player evidence ingestion | US-1.4 | No provider contract | Timestamped multi-source evidence with identity reconciliation | PRD roadmap 2 |
 | Queryable history | US-1.4, US-4.* | JSON snapshots only | Local analytical store with migrations | Open decision |
 | Draft engine | US-2.* | Absent | League-aware, stateful draft recommendations | PRD roadmap 3 |
-| Payout accounting regression | US-1.1 | Notebook over-allocates fixed third-place amount | Golden fixture and corrected calculation | `docs/compounding/2026-08-27-1154.md` |
 
 ## 11. Authoritative pointers
 
 | Exact truth | Source or command |
 |---|---|
 | Package and optional dependencies | `pyproject.toml` |
+| Payout allocation contract | `src/fantasy_assistant/payouts.py` and `tests/fixtures/payout_plan.json` |
 | ESPN request contract | `src/fantasy_assistant/espn/client.py` |
 | Normalized schema v1 | `src/fantasy_assistant/ingestion/normalize.py` and its fixture test |
 | Snapshot path contract | `src/fantasy_assistant/ingestion/store.py` |

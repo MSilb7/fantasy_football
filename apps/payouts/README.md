@@ -22,12 +22,16 @@ The notebooks read ESPN credentials from the repository-root `.env` and write ge
 - `notebooks/pull_scores_2024.ipynb` — updated ESPN read endpoint.
 - `notebooks/pull_scores_2025.ipynb` — current multi-tab payout workbook.
 
-The notebooks are intentionally kept separate from `src/fantasy_assistant/`. A future payout
-refactor should add regression fixtures first, then move shared ESPN and calculation behavior into
-the package without changing historical results.
+The notebooks remain a separate presentation application, while financial allocation is shared
+through `src/fantasy_assistant/payouts.py`. The 2025 notebook imports that module so payout rules are
+tested once rather than copied into notebook cells.
 
-## Known issue
+## Funding guarantee
 
-The 2025 notebook's winner pool currently does not subtract the fixed third-place payout before
-splitting first and second place. Its printed total therefore exceeds the pot by that fixed amount.
-This was preserved during the folder move and is tracked in `docs/compounding/2026-08-27-1154.md`.
+Every payout comes from the total pot of team buy-ins. Weekly highs are removed first, the fixed
+third-place award is removed next, and first and second split the remaining placement pool. The
+workbook's Parameters tab verifies that weekly highs plus all three placement payouts equal the
+total pot.
+
+Reports generated before commit `d2c0546` are not rewritten automatically. Re-run the 2025 notebook
+to replace a prior local workbook with the corrected allocation.
