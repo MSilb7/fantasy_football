@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fantasy-football-assistant"
+version = "0.1.0"
+description = "Local-first decision support for ESPN fantasy football leagues."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+payouts = [
+  "jupyter>=1.1",
+  "openpyxl>=3.1",
+  "pandas>=2.2",
+  "python-dotenv>=1.0",
+  "requests>=2.32",
+]
+dev = ["pytest>=8.3"]
+
+[project.scripts]
+fantasy-assistant = "fantasy_assistant.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fantasy_assistant"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["src"]
+testpaths = ["tests"]
