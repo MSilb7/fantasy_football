@@ -24,17 +24,19 @@ tests/                        Offline contract fixtures and unit tests
 
 The core sync path uses only the Python 3.11+ standard library.
 
+Create `.env` from the example and fill in private ESPN cookies. Then discover football leagues and
+generate the ignored local profile file directly from the authenticated ESPN account:
+
 ```bash
-cp config/leagues.example.toml config/leagues.toml
 cp .env.example .env
-```
-
-Fill in league metadata in `config/leagues.toml` and private ESPN cookies in `.env`, then run:
-
-```bash
+PYTHONPATH=src python -m fantasy_assistant.cli discover-leagues --season 2026 --write-config
 PYTHONPATH=src python -m fantasy_assistant.cli doctor
 PYTHONPATH=src python -m fantasy_assistant.cli sync-league --league primary --season 2026
 ```
+
+`discover-leagues` reports league/team identity and draft metadata but never writes cookies. If ESPN
+discovery is unavailable, copy `config/leagues.example.toml` to `config/leagues.toml` and fill it in
+manually. Replace `primary` in the sync command with a generated profile name shown by `doctor`.
 
 The sync stores both the untouched ESPN response and a source-neutral normalized snapshot. Neither
 local league data nor credentials are committed.

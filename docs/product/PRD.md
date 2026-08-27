@@ -49,6 +49,8 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 
 ### Shared data foundation
 
+- Discover current football league and team memberships from the authenticated ESPN profile —
+  **BUILT**
 - Load multiple named league profiles without storing secrets in git — **BUILT**
 - Validate local ESPN credentials without printing them — **BUILT**
 - Fetch reusable ESPN league snapshots through one client — **BUILT**
@@ -101,8 +103,8 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 
 ## 5. Roadmap
 
-1. **League onboarding and data contracts** — validate real league payloads, expand fixture coverage,
-   and document league-specific scoring/roster interpretation. Supports US-1.2 and US-1.3.
+1. **League onboarding and data contracts** — auto-discovery and real 2026 league validation are
+   built; continue capturing materially new ESPN shapes as fixtures. Supports US-1.2 and US-1.3.
 2. **Player evidence layer** — select and ingest authoritative stats, projections, injuries, ADP, and
    news; attach source, as-of time, and confidence. Supports US-1.4.
 3. **Draft workspace** — add draft state, positional scarcity/value models, tiers, roster constraints,
@@ -125,7 +127,6 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 ## 7. Open product decisions
 
 - Which external sources should complement ESPN for stats, projections, injuries, ADP, and news?
-- Which leagues and seasons should be onboarded first?
 - What are the user's draft philosophy, risk tolerance, keeper rules, and trade/waiver preferences?
 - Should prompt interaction remain repository-local, or later gain a dedicated chat/UI surface?
 

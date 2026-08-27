@@ -1,0 +1,49 @@
+{
+  "preferences": [
+    {
+      "type": {"id": 9, "name": "Fantasy League Manager", "code": "fantasy"},
+      "metaData": {
+        "entry": {
+          "entryId": 14,
+          "gameId": 1,
+          "seasonId": 2026,
+          "entryMetadata": {
+            "teamName": "Example Football Team",
+            "teamAbbrev": "EFT",
+            "scoringTypeName": "Head to Head Points"
+          },
+          "groups": [
+            {
+              "groupId": 123456,
+              "groupName": "Example Football League",
+              "groupSize": 12,
+              "draftDate": 1788138000000,
+              "draftStatus": "PRE",
+              "draftType": 1,
+              "draftTypeName": "Snake",
+              "leagueStatus": "ACTIVE"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": {"id": 9, "name": "Fantasy League Manager", "code": "fantasy"},
+      "metaData": {
+        "entry": {
+          "entryId": 7,
+          "gameId": 3,
+          "seasonId": 2026,
+          "entryMetadata": {"teamName": "Example Basketball Team"},
+          "groups": [
+            {"groupId": 555, "groupName": "Example Basketball League", "groupSize": 10}
+          ]
+        }
+      }
+    },
+    {
+      "type": {"id": 2, "name": "Favorite Team", "code": "teams"},
+      "metaData": {"teamId": "10"}
+    }
+  ]
+}

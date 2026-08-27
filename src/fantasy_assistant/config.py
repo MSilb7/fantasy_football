@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
+import re
+import tempfile
 import tomllib
 from typing import Mapping
 
@@ -19,6 +22,8 @@ class LeagueProfile:
 
     name: str
     league_id: str
+    league_name: str | None = None
+    team_id: str | None = None
     team_name: str | None = None
     seasons: tuple[int, ...] = ()
 
@@ -43,8 +48,8 @@ def load_league_profiles(path: Path) -> dict[str, LeagueProfile]:
 
     if not path.exists():
         raise ConfigurationError(
-            f"League config not found: {path}. Copy config/leagues.example.toml "
-            "to config/leagues.toml and fill in your league metadata."
+            f"League config not found: {path}. Run discover-leagues --write-config, or copy "
+            "config/leagues.example.toml to config/leagues.toml and fill it in manually."
         )
 
     with path.open("rb") as handle:
@@ -62,14 +67,70 @@ def load_league_profiles(path: Path) -> dict[str, LeagueProfile]:
         if not league_id:
             raise ConfigurationError(f"League profile {name!r} is missing league_id.")
         seasons = tuple(int(value) for value in raw.get("seasons", ()))
+        league_name = str(raw["league_name"]).strip() if raw.get("league_name") else None
+        team_id = str(raw["team_id"]).strip() if raw.get("team_id") is not None else None
         team_name = str(raw["team_name"]).strip() if raw.get("team_name") else None
         profiles[name] = LeagueProfile(
             name=name,
             league_id=league_id,
+            league_name=league_name,
+            team_id=team_id,
             team_name=team_name,
             seasons=seasons,
         )
     return profiles
+
+
+def write_league_profiles(
+    path: Path,
+    profiles: Mapping[str, LeagueProfile],
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Write non-secret league profiles as TOML using an atomic local update."""
+
+    if path.exists() and not overwrite:
+        raise ConfigurationError(f"League config already exists: {path}")
+    if not profiles:
+        raise ConfigurationError("Cannot write an empty league configuration.")
+
+    lines = [
+        "# Generated from the authenticated ESPN profile.",
+        "# Credentials remain in .env and are never written here.",
+        "",
+    ]
+    for name, profile in sorted(profiles.items()):
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+            raise ConfigurationError(f"Unsafe league profile name: {name!r}")
+        lines.extend(
+            [
+                f"[leagues.{name}]",
+                f"league_id = {json.dumps(profile.league_id, ensure_ascii=False)}",
+            ]
+        )
+        if profile.league_name:
+            lines.append(
+                f"league_name = {json.dumps(profile.league_name, ensure_ascii=False)}"
+            )
+        if profile.team_id:
+            lines.append(f"team_id = {json.dumps(profile.team_id, ensure_ascii=False)}")
+        if profile.team_name:
+            lines.append(f"team_name = {json.dumps(profile.team_name, ensure_ascii=False)}")
+        lines.append(f"seasons = [{', '.join(str(season) for season in profile.seasons)}]")
+        lines.append("")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as handle:
+        handle.write("\n".join(lines).rstrip() + "\n")
+        temporary_path = Path(handle.name)
+    temporary_path.replace(path)
 
 
 def _read_dotenv(path: Path) -> dict[str, str]:

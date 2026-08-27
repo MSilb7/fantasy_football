@@ -4,8 +4,10 @@ import unittest
 
 from fantasy_assistant.config import (
     ConfigurationError,
+    LeagueProfile,
     load_espn_credentials,
     load_league_profiles,
+    write_league_profiles,
 )
 
 
@@ -14,13 +16,40 @@ class ConfigTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "leagues.toml"
             path.write_text(
-                '[leagues.home]\nleague_id = "123"\nteam_name = "My Team"\nseasons = [2025, 2026]\n',
+                '[leagues.home]\nleague_id = "123"\nleague_name = "Home League"\n'
+                'team_id = "7"\nteam_name = "My Team"\nseasons = [2025, 2026]\n',
                 encoding="utf-8",
             )
             profiles = load_league_profiles(path)
 
         self.assertEqual(profiles["home"].league_id, "123")
+        self.assertEqual(profiles["home"].league_name, "Home League")
+        self.assertEqual(profiles["home"].team_id, "7")
         self.assertEqual(profiles["home"].seasons, (2025, 2026))
+
+    def test_writes_and_round_trips_discovered_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config" / "leagues.toml"
+            write_league_profiles(
+                path,
+                {
+                    "example_league": LeagueProfile(
+                        name="example_league",
+                        league_id="123456",
+                        league_name="Example League",
+                        team_id="14",
+                        team_name="Example Team",
+                        seasons=(2026,),
+                    )
+                },
+            )
+            profiles = load_league_profiles(path)
+
+            self.assertEqual(profiles["example_league"].league_id, "123456")
+            self.assertEqual(profiles["example_league"].team_name, "Example Team")
+
+            with self.assertRaisesRegex(ConfigurationError, "already exists"):
+                write_league_profiles(path, profiles)
 
     def test_environment_credentials_override_dotenv(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

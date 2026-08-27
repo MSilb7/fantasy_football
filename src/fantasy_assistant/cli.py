@@ -5,14 +5,23 @@ from __future__ import annotations
 import argparse
 from datetime import UTC, datetime
 from pathlib import Path
+import re
 import sys
+import unicodedata
 
 from fantasy_assistant.config import (
     ConfigurationError,
+    LeagueProfile,
     load_espn_credentials,
     load_league_profiles,
+    write_league_profiles,
 )
-from fantasy_assistant.espn import ESPNAPIError, ESPNClient
+from fantasy_assistant.espn import (
+    DiscoveredLeague,
+    ESPNAPIError,
+    ESPNClient,
+    ESPNLeagueDiscoveryClient,
+)
 from fantasy_assistant.ingestion import SnapshotStore, normalize_league_snapshot
 
 
@@ -23,6 +32,22 @@ def _parser() -> argparse.ArgumentParser:
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     subcommands.add_parser("doctor", help="Validate local league metadata and ESPN credentials.")
+
+    discover = subcommands.add_parser(
+        "discover-leagues",
+        help="Discover fantasy football leagues from the authenticated ESPN profile.",
+    )
+    discover.add_argument("--season", type=int, help="Limit results to one season.")
+    discover.add_argument(
+        "--write-config",
+        action="store_true",
+        help="Write discovered identities to the configured leagues TOML file.",
+    )
+    discover.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing league config when used with --write-config.",
+    )
 
     sync = subcommands.add_parser("sync-league", help="Fetch and store one ESPN league snapshot.")
     sync.add_argument("--league", required=True, help="Profile name from config/leagues.toml.")
@@ -37,7 +62,71 @@ def _doctor(args: argparse.Namespace) -> int:
     print(f"OK: {len(profiles)} league profile(s) loaded; ESPN credentials are present.")
     for profile in profiles.values():
         identity = f"; team={profile.team_name}" if profile.team_name else ""
-        print(f"- {profile.name}: league_id={profile.league_id}{identity}")
+        league = f"; league={profile.league_name}" if profile.league_name else ""
+        print(f"- {profile.name}: league_id={profile.league_id}{league}{identity}")
+    return 0
+
+
+def _slug(value: str) -> str:
+    ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "_", ascii_value.casefold()).strip("_")
+
+
+def _profiles_from_discovered(
+    leagues: list[DiscoveredLeague],
+) -> dict[str, LeagueProfile]:
+    grouped: dict[tuple[str, str], list[DiscoveredLeague]] = {}
+    for league in leagues:
+        grouped.setdefault((league.league_id, league.team_id), []).append(league)
+
+    profiles: dict[str, LeagueProfile] = {}
+    for (league_id, team_id), observations in sorted(
+        grouped.items(), key=lambda item: (item[1][0].league_name.casefold(), item[0])
+    ):
+        latest = max(observations, key=lambda league: league.season)
+        base_name = _slug(latest.league_name) or f"league_{league_id}"
+        profile_name = base_name
+        if profile_name in profiles:
+            profile_name = f"{base_name}_{league_id}"
+        if profile_name in profiles:
+            profile_name = f"{profile_name}_{team_id}"
+        profiles[profile_name] = LeagueProfile(
+            name=profile_name,
+            league_id=league_id,
+            league_name=latest.league_name,
+            team_id=team_id,
+            team_name=latest.team_name,
+            seasons=tuple(sorted({league.season for league in observations})),
+        )
+    return profiles
+
+
+def _discover_leagues(args: argparse.Namespace) -> int:
+    credentials = load_espn_credentials(dotenv_path=args.dotenv)
+    leagues = ESPNLeagueDiscoveryClient(credentials).discover_football_leagues()
+    if args.season is not None:
+        leagues = [league for league in leagues if league.season == args.season]
+    if not leagues:
+        qualifier = f" for {args.season}" if args.season is not None else ""
+        raise ConfigurationError(f"No ESPN fantasy football leagues were discovered{qualifier}.")
+
+    print(f"Discovered {len(leagues)} ESPN fantasy football league membership(s):")
+    for league in leagues:
+        details = []
+        if league.league_size is not None:
+            details.append(f"{league.league_size} teams")
+        if league.draft_type:
+            details.append(f"draft={league.draft_type}")
+        suffix = f"; {', '.join(details)}" if details else ""
+        print(
+            f"- {league.league_name} ({league.season}): league_id={league.league_id}; "
+            f"team={league.team_name}; team_id={league.team_id}{suffix}"
+        )
+
+    if args.write_config:
+        profiles = _profiles_from_discovered(leagues)
+        write_league_profiles(args.config, profiles, overwrite=args.force)
+        print(f"Wrote {len(profiles)} profile(s) to {args.config}.")
     return 0
 
 
@@ -77,6 +166,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "doctor":
             return _doctor(args)
+        if args.command == "discover-leagues":
+            return _discover_leagues(args)
         if args.command == "sync-league":
             return _sync_league(args)
     except (ConfigurationError, ESPNAPIError, OSError, ValueError) as error:
