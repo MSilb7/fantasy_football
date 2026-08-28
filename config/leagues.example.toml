@@ -9,6 +9,12 @@ team_id = "YOUR_TEAM_ID"
 team_name = "YOUR_TEAM_NAME"
 seasons = [2026]
 
+# Add an override only when ESPN used different league or team IDs for a past
+# season. Missing team_id values inherit the profile-level team_id.
+# [leagues.primary.season_identities."2017"]
+# league_id = "HISTORICAL_LEAGUE_ID"
+# team_id = "HISTORICAL_TEAM_ID"
+
 # Add another named table for every league the assistant should understand.
 # [leagues.work]
 # league_id = "ANOTHER_LEAGUE_ID"

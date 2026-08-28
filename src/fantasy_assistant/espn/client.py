@@ -25,6 +25,10 @@ DEFAULT_LEAGUE_VIEWS = (
 class ESPNAPIError(RuntimeError):
     """A sanitized ESPN request or response failure."""
 
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
 
 class ESPNClient:
     """Fetch ESPN league snapshots while keeping HTTP details in one place."""
@@ -65,7 +69,10 @@ class ESPNClient:
             with self._opener(request, timeout=self._timeout_seconds) as response:
                 body = response.read()
         except HTTPError as error:
-            raise ESPNAPIError(f"ESPN returned HTTP {error.code} for league {league_id}.") from error
+            raise ESPNAPIError(
+                f"ESPN returned HTTP {error.code} for league {league_id}.",
+                status_code=error.code,
+            ) from error
         except URLError as error:
             raise ESPNAPIError(f"Could not reach ESPN for league {league_id}.") from error
 

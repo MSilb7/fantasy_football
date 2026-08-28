@@ -1,0 +1,14 @@
+[leagues.example]
+league_id = "9000"
+league_name = "Example League"
+team_id = "9"
+team_name = "Example Team"
+seasons = [2016, 2017, 2018]
+
+[leagues.example.season_identities."2016"]
+league_id = "7000"
+team_id = "7"
+
+[leagues.example.season_identities."2017"]
+league_id = "8000"
+team_id = "8"

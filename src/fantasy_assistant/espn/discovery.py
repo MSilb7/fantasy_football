@@ -135,7 +135,8 @@ class ESPNLeagueDiscoveryClient:
                 body = response.read()
         except HTTPError as error:
             raise ESPNAPIError(
-                f"ESPN returned HTTP {error.code} while discovering leagues."
+                f"ESPN returned HTTP {error.code} while discovering leagues.",
+                status_code=error.code,
             ) from error
         except URLError as error:
             raise ESPNAPIError("Could not reach ESPN while discovering leagues.") from error

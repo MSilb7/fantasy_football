@@ -2,7 +2,7 @@
 
 **Purpose:** Map how the implementation satisfies `docs/product/PRD.md` without duplicating exact
 schemas or historical rationale.
-**Last reconciled:** 2026-08-27 · `codex/espn-draft-data-ingestion`
+**Last reconciled:** 2026-08-28 · `compounding/20260827-1245-C-ESPN2`
 
 ## 1. System context and traceability
 
@@ -21,12 +21,12 @@ or shared database.
 |---|---|---|---|---|---|
 | `apps/payouts/` | Preserve annual payout workbook workflow | Notebook presentation, ESPN retrieval, and reports | Jupyter notebooks | US-1.1 | BUILT |
 | `src/fantasy_assistant/payouts.py` | Allocate the total buy-in pot across every payout | Financial calculation and conservation invariant | `PayoutRules`, `calculate_payout_plan` | US-1.1 | BUILT |
-| `src/fantasy_assistant/config.py` | Load local league metadata and private ESPN cookies | Configuration validation and secret-name compatibility | `load_league_profiles`, `load_espn_credentials` | US-1.2 | BUILT |
+| `src/fantasy_assistant/config.py` | Load local league metadata, season-specific identities, and private ESPN cookies | Configuration validation, historical identity resolution, and secret-name compatibility | `load_league_profiles`, `LeagueProfile.identity_for_season`, `load_espn_credentials` | US-1.2 | BUILT |
 | `src/fantasy_assistant/espn/` | Isolate ESPN URLs, views, cookies, filters, and transport failures | ESPN source contract | `ESPNClient.fetch_league`, `fetch_draft`, `fetch_player_pool` | US-1.3, US-1.4 | BUILT |
 | `src/fantasy_assistant/espn/discovery.py` | Discover football league/team memberships without known league IDs | Authenticated fan-profile parsing | `ESPNLeagueDiscoveryClient.discover_football_leagues` | US-1.2 | BUILT |
 | `src/fantasy_assistant/ingestion/normalize.py` | Convert ESPN league, draft, and player payloads to stable source-neutral snapshots | League schema v3; draft and player-evidence schema v1 | Normalization functions | US-1.3, US-1.4 | BUILT |
 | `src/fantasy_assistant/ingestion/store.py` | Persist immutable raw and normalized observations | Timestamped local JSON snapshots | `SnapshotStore.save` | US-1.3 | BUILT |
-| `src/fantasy_assistant/cli.py` | Expose safe setup checks and sync orchestration | Human/agent command contract | `doctor`, discovery, and three sync commands | US-1.2 through US-1.4 | BUILT |
+| `src/fantasy_assistant/cli.py` | Expose safe setup checks and sync orchestration | Human/agent command contract | `doctor`, discovery, historical sync, and three source-specific sync commands | US-1.2 through US-1.4 | BUILT |
 | Future player-source adapters | Complement ESPN with deeper history, news, and independent projections/ADP | Source-specific evidence | Provider contracts to be decided | US-1.4 | PLANNED |
 | Future decision modules | Produce draft, trade, waiver, and lineup recommendations | Derived features and explanations | Prompt-ready context and recommendation contracts | US-2.*, US-3.* | PLANNED |
 | Future behavior store | Retain decisions, outcomes, preferences, and manager actions | Longitudinal evidence | Versioned event/feature contract | US-4.* | PLANNED |
@@ -38,8 +38,9 @@ or shared database.
 - Normalization owns league schema v3 and draft/player-evidence schema v1 under the parallel
   `data/normalized/` path. Exact fields are defined by the normalization functions and pinned by
   offline tests.
-- `config/leagues.toml` owns local league identity and team mapping. It is ignored because those
-  details may be private even though they are not authentication secrets.
+- `config/leagues.toml` owns each logical league's default identity, configured seasons, and sparse
+  season-specific league/team ID overrides. It is ignored because those details may be private even
+  though they are not authentication secrets.
 - `.env` or the process environment owns ESPN cookies. Cookie values never enter stored snapshots,
   logs, config profiles, or exception text.
 - `src/fantasy_assistant/payouts.py` owns financial allocation. The fixed third-place amount and
@@ -70,7 +71,9 @@ actuals and projections for downstream consumers.
 The CLI returns zero on success and two on configuration, transport, or storage errors. `doctor`
 validates presence, not whether ESPN accepts an expiring cookie. `sync-league` is the first live
 league/rules contract; `sync-draft` stores draft slots and real selections; and
-`sync-player-evidence` stores the ESPN player baseline.
+`sync-player-evidence` stores the ESPN player baseline. `sync-history` resolves the configured
+identity for each season, stores every successful league snapshot independently, and reports an
+ESPN-inaccessible season without discarding or blocking other successful seasons.
 
 ## 5. Important flows
 
@@ -80,7 +83,8 @@ league/rules contract; `sync-draft` stores draft slots and real selections; and
 2. `discover-leagues --write-config` reads the authenticated fan profile, retains only football
    league/team identity, and writes non-secret local profiles.
 3. `doctor` parses profiles and confirms both credential values are present without displaying them.
-4. `sync-league` selects a profile and asks the ESPN adapter for one multi-view payload.
+4. `sync-league` selects a profile and asks the ESPN adapter for one multi-view payload. Historical
+   sync first resolves a sparse per-season identity override, falling back to profile defaults.
 5. The raw response is normalized in memory.
 6. The store writes raw and normalized JSON atomically to timestamped paths.
 7. Later decision modules load normalized snapshots and state their source timestamp.
@@ -91,6 +95,9 @@ past season explicitly. A failed season does not alter earlier snapshots.
 
 Failure before step 5 produces no completed snapshot. The store writes through a temporary file and
 an atomic same-directory replacement so interrupted writes do not masquerade as valid observations.
+Historical sync handles only ESPN HTTP 404 as season-local; authentication, transport,
+normalization, and storage failures still stop the command so a systemic or programming defect is
+not mislabeled as missing upstream history.
 
 ### Future recommendation flow
 
@@ -126,6 +133,7 @@ PYTHONPATH=src python -m fantasy_assistant.cli discover-leagues --season 2026 --
 PYTHONPATH=src python -m fantasy_assistant.cli sync-league --league primary --season 2026
 PYTHONPATH=src python -m fantasy_assistant.cli sync-draft --league primary --season 2026
 PYTHONPATH=src python -m fantasy_assistant.cli sync-player-evidence --league primary --season 2026
+PYTHONPATH=src python -m fantasy_assistant.cli sync-history --league primary
 PYTHONPATH=src python -m unittest discover -s tests -v
 node scripts/compounding-status.mjs
 ```
@@ -147,6 +155,11 @@ the schema changes. Retention and backup policy are not yet defined.
   league, and eight completed 192-selection drafts from 2018–2025; live payloads remain local and
   ignored. ESPN returned 404 for 2016–2017 under the current league ID, despite listing those years
   as prior seasons.
+- A synthetic profile fixture pins a logical league whose league and team IDs change in 2016 and
+  2017. Live validation on 2026-08-28 confirmed the authenticated fan profile exposes only 2026
+  memberships; available ESPN UI/history surfaces expose no alternate IDs; the current identity
+  returns 404 for 2016–2017; and one `sync-history` run still saved the complete 2018 league after
+  reporting both inaccessible seasons.
 - Draft, trade, waiver, lineup, and behavioral evaluation harnesses are not yet built.
 
 ## 9. Active decisions

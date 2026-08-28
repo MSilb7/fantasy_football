@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 import re
@@ -77,6 +79,22 @@ def _parser() -> argparse.ArgumentParser:
     sync_players.add_argument("--season", required=True, type=int)
     sync_players.add_argument("--limit", type=int, default=5000)
     sync_players.add_argument("--data-dir", type=Path, default=Path("data"))
+
+    sync_history = subcommands.add_parser(
+        "sync-history",
+        help="Fetch every configured or requested season without aborting on inaccessible seasons.",
+    )
+    sync_history.add_argument(
+        "--league", required=True, help="Profile name from config/leagues.toml."
+    )
+    sync_history.add_argument(
+        "--season",
+        dest="seasons",
+        action="append",
+        type=int,
+        help="Season to sync; repeat for multiple seasons. Defaults to the profile seasons.",
+    )
+    sync_history.add_argument("--data-dir", type=Path, default=Path("data"))
     return parser
 
 
@@ -252,6 +270,97 @@ def _sync_player_evidence(args: argparse.Namespace) -> int:
     return 0
 
 
+@dataclass(frozen=True)
+class HistorySyncResult:
+    season: int
+    status: str
+    team_count: int = 0
+    matchup_count: int = 0
+
+
+def _sync_history_seasons(
+    *,
+    profile: LeagueProfile,
+    seasons: Iterable[int],
+    client: ESPNClient,
+    store: SnapshotStore,
+    fetched_at_for_season: Callable[[int], str] | None = None,
+) -> list[HistorySyncResult]:
+    """Sync independent seasons and retain successful snapshots when one is inaccessible."""
+
+    if fetched_at_for_season is None:
+        fetched_at_for_season = lambda _season: datetime.now(UTC).replace(
+            microsecond=0
+        ).isoformat()
+
+    results: list[HistorySyncResult] = []
+    for season in sorted(set(seasons)):
+        identity = profile.identity_for_season(season)
+        try:
+            raw = client.fetch_league(
+                season=season,
+                league_id=identity.league_id,
+                matchup_periods=range(1, 19),
+            )
+        except ESPNAPIError as error:
+            if error.status_code != 404:
+                raise
+            results.append(HistorySyncResult(season=season, status="inaccessible"))
+            continue
+
+        fetched_at = fetched_at_for_season(season)
+        normalized = normalize_league_snapshot(
+            raw,
+            season=season,
+            fetched_at=fetched_at,
+        )
+        store.save(
+            source="espn",
+            league_id=identity.league_id,
+            season=season,
+            fetched_at=fetched_at,
+            raw=raw,
+            normalized=normalized,
+        )
+        results.append(
+            HistorySyncResult(
+                season=season,
+                status="saved",
+                team_count=normalized["league"]["team_count"],
+                matchup_count=len(normalized["matchups"]),
+            )
+        )
+    return results
+
+
+def _sync_history(args: argparse.Namespace) -> int:
+    profile = _load_profile(args)
+    seasons = tuple(args.seasons or profile.seasons)
+    if not seasons:
+        raise ConfigurationError(
+            f"League profile {profile.name!r} has no seasons; pass --season at least once."
+        )
+    credentials = load_espn_credentials(dotenv_path=args.dotenv)
+    results = _sync_history_seasons(
+        profile=profile,
+        seasons=seasons,
+        client=ESPNClient(credentials),
+        store=SnapshotStore(args.data_dir),
+    )
+    for result in results:
+        if result.status == "saved":
+            print(
+                f"- {result.season}: saved {result.team_count} teams and "
+                f"{result.matchup_count} matchups."
+            )
+        else:
+            print(f"- {result.season}: inaccessible; prior snapshots were left unchanged.")
+    saved = sum(result.status == "saved" for result in results)
+    inaccessible = len(results) - saved
+    print(f"History sync complete: {saved} saved, {inaccessible} inaccessible.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -265,6 +374,8 @@ def main(argv: list[str] | None = None) -> int:
             return _sync_draft(args)
         if args.command == "sync-player-evidence":
             return _sync_player_evidence(args)
+        if args.command == "sync-history":
+            return _sync_history(args)
     except (ConfigurationError, ESPNAPIError, OSError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
