@@ -1,6 +1,6 @@
 # PRD — Fantasy Football Assistant
 
-**Status date:** 2026-08-27
+**Status date:** 2026-08-31
 **Status legend:** **BUILT** · **PARTIAL** · **UNBUILT** · **DECLINED**
 
 This is the single living product north star. It owns desired behavior and priorities; technical
@@ -66,8 +66,8 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 
 ### Decision support
 
-- Build a league-aware draft board from roster and scoring rules — **UNBUILT**
-- Update draft recommendations after every pick — **UNBUILT**
+- Build a league-aware draft board from roster and scoring rules — **BUILT**
+- Refresh and update draft recommendations after every pick — **BUILT**
 - Evaluate trades using roster construction, replacement value, schedule, risk, and preferences —
   **UNBUILT**
 - Rank free agents and proposed waiver bids — **UNBUILT**
@@ -91,9 +91,13 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 - **US-1.4 · Refresh player evidence** — As the user, I can ingest current and historical stats,
   projections, availability, and news with source and timestamp metadata. — **PARTIAL**
 - **US-2.1 · Prepare a draft** — As the user, I can receive a league-specific tiered draft plan after
-  providing draft slot, keepers, and strategy preferences. — **UNBUILT**
+  providing draft slot, keepers, and strategy preferences. The live board covers rules, slot,
+  keepers, and roster construction; explicit strategy preferences and durable tiers remain. — **PARTIAL**
 - **US-2.2 · Run a live draft** — As picks occur, I can update draft state and get a short list of
-  best next selections plus likely intervening picks. — **UNBUILT**
+  best next selections plus likely intervening demand. Each answer defaults to a score-sorted top 10
+  with projected points and 0–100 value, need, scarcity, opponent-demand, next-turn availability,
+  health, and overall ratings. Refresh and computation should complete within 10 seconds under
+  ordinary ESPN availability; calibrated player-level predictions for intervening picks remain. — **PARTIAL**
 - **US-3.1 · Evaluate a trade** — As the user, I can compare a trade's expected value, risks, roster
   effects, and acceptance likelihood. — **UNBUILT**
 - **US-3.2 · Work waivers** — As the user, I can prioritize adds/drops and waiver budget using league
@@ -113,8 +117,10 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 2. **Player evidence layer** — ESPN baseline availability, ADP, ranks, projections, injuries, and
    prior-season actuals are built; add news, deeper history, source comparison, identity
    reconciliation, and confidence. Supports US-1.4.
-3. **Draft workspace** — add draft state, positional scarcity/value models, tiers, roster constraints,
-   and live pick updates. Supports US-2.1 and US-2.2 and is the first decision workflow.
+3. **Draft workspace** — the live top-10 board, roster constraints, positional scarcity/value,
+   opponent-demand estimates, and pick refresh are built; add durable tiers, preferences, richer
+   injury evidence, and calibrated player-level intervening-pick predictions. Supports US-2.1 and
+   US-2.2 and is the first decision workflow.
 4. **In-season decisions** — implement lineup, waiver, and trade analysis on the same context model.
    Supports US-3.1 through US-3.3.
 5. **Preference and manager learning** — retain decisions and outcomes, then introduce calibrated

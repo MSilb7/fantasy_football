@@ -24,6 +24,10 @@ tests/                        Offline contract fixtures and unit tests
 
 The core sync path uses only the Python 3.11+ standard library.
 
+Check `python --version` before live operations. Some local login shells may resolve `python` or
+`python3` to an older Anaconda interpreter even when a newer Homebrew/system interpreter is
+installed; run the commands with an explicit Python 3.11+ executable when that happens.
+
 Create `.env` from the example and fill in private ESPN cookies. Then discover football leagues and
 generate the ignored local profile file directly from the authenticated ESPN account:
 
@@ -34,6 +38,7 @@ PYTHONPATH=src python -m fantasy_assistant.cli doctor
 PYTHONPATH=src python -m fantasy_assistant.cli sync-league --league primary --season 2026
 PYTHONPATH=src python -m fantasy_assistant.cli sync-draft --league primary --season 2026
 PYTHONPATH=src python -m fantasy_assistant.cli sync-player-evidence --league primary --season 2026
+PYTHONPATH=src python -m fantasy_assistant.cli draft-board --league primary --season 2026 --refresh
 PYTHONPATH=src python -m fantasy_assistant.cli sync-history --league primary
 ```
 
@@ -51,6 +56,18 @@ Historical sync uses the profile's `seasons` list and continues when ESPN return
 year, leaving earlier snapshots unchanged. If ESPN changed a league or team ID between seasons, add
 the season-specific override shown in `config/leagues.example.toml`; credentials remain shared in
 `.env` and are never duplicated in the profile.
+
+During a live snake draft, run `draft-board --refresh` for each decision. It refreshes only the
+pick-level state, excludes keepers and completed selections, reconstructs every team's positional
+needs, and prints a score-sorted top 10. The table includes league-scoring projected points plus
+0–100 ratings for consensus value, your roster need, positional scarcity, opponent demand before
+your next decision, chance the player is gone by then, health, and overall recommendation strength.
+Refresh league settings and player evidence once before the draft; the per-pick command then stays
+small enough for a normal draft clock.
+
+In a fresh Codex task opened on this repository, the short prompt **`run now`** (or **`on the
+clock`**) invokes the repository-local live draft companion. It performs the same refresh and
+returns the current top-10 table; the user still makes the selection in ESPN.
 
 To install the command and optional payout notebook dependencies:
 

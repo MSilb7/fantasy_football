@@ -36,3 +36,5 @@
   criteria in the compounding queue.
 - Repeated repository procedures belong in a repository-local skill; broadly reusable procedures
   should be promoted to the canonical AI Tools repository rather than copied into this file.
+- For live draft prompts such as "run now" or "on the clock," follow
+  `.agents/skills/live-draft-companion/SKILL.md`.

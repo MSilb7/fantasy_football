@@ -2,7 +2,7 @@
 
 **Purpose:** Map how the implementation satisfies `docs/product/PRD.md` without duplicating exact
 schemas or historical rationale.
-**Last reconciled:** 2026-08-28 · `compounding/20260827-1245-C-ESPN2`
+**Last reconciled:** 2026-08-31 · live draft companion
 
 ## 1. System context and traceability
 
@@ -11,9 +11,9 @@ Jupyter payout application. ESPN is the initial league system of record. Future 
 will enter through separate adapters and converge on versioned normalized records before any
 decision module uses them.
 
-This design implements PRD US-1.1 through US-1.3 and ESPN's portion of US-1.4. Draft and in-season
-recommendations remain planned. The system does not execute moves on ESPN and has no remote service
-or shared database.
+This design implements PRD US-1.1 through US-1.3, ESPN's portion of US-1.4, and the deterministic
+core of the US-2 live draft workflow. In-season recommendations remain planned. The system does not
+execute moves on ESPN and has no remote service or shared database.
 
 ## 2. Components and responsibilities
 
@@ -26,9 +26,10 @@ or shared database.
 | `src/fantasy_assistant/espn/discovery.py` | Discover football league/team memberships without known league IDs | Authenticated fan-profile parsing | `ESPNLeagueDiscoveryClient.discover_football_leagues` | US-1.2 | BUILT |
 | `src/fantasy_assistant/ingestion/normalize.py` | Convert ESPN league, draft, and player payloads to stable source-neutral snapshots | League schema v3; draft and player-evidence schema v1 | Normalization functions | US-1.3, US-1.4 | BUILT |
 | `src/fantasy_assistant/ingestion/store.py` | Persist immutable raw and normalized observations | Timestamped local JSON snapshots | `SnapshotStore.save` | US-1.3 | BUILT |
+| `src/fantasy_assistant/draft.py` | Rank available players for the user's next live selection | Derived value, roster need, scarcity, opponent demand, next-turn risk, health, and composite scores | `recommend_draft_picks`, `render_draft_board` | US-2.1, US-2.2 | BUILT |
 | `src/fantasy_assistant/cli.py` | Expose safe setup checks and sync orchestration | Human/agent command contract | `doctor`, discovery, historical sync, and three source-specific sync commands | US-1.2 through US-1.4 | BUILT |
 | Future player-source adapters | Complement ESPN with deeper history, news, and independent projections/ADP | Source-specific evidence | Provider contracts to be decided | US-1.4 | PLANNED |
-| Future decision modules | Produce draft, trade, waiver, and lineup recommendations | Derived features and explanations | Prompt-ready context and recommendation contracts | US-2.*, US-3.* | PLANNED |
+| Future decision modules | Produce trade, waiver, and lineup recommendations and enrich draft predictions | Derived features and explanations | Prompt-ready context and recommendation contracts | US-2.*, US-3.* | PLANNED |
 | Future behavior store | Retain decisions, outcomes, preferences, and manager actions | Longitudinal evidence | Versioned event/feature contract | US-4.* | PLANNED |
 
 ## 3. Data ownership and persistence
@@ -75,6 +76,15 @@ league/rules contract; `sync-draft` stores draft slots and real selections; and
 identity for each season, stores every successful league snapshot independently, and reports an
 ESPN-inaccessible season without discarding or blocking other successful seasons.
 
+`draft-board` consumes only normalized models. With `--refresh`, it makes one pick-level ESPN request,
+stores that raw and normalized observation, and then ranks the remaining pool against the latest
+league settings and player-evidence snapshots. ESPN's league-relative projected `applied_total` is
+the points baseline. Half-PPR consensus value blends ESPN PPR and standard ranks. Need derives from
+the user's drafted/kept roster and configured starter shape; scarcity compares projected points with
+the remaining league-wide positional replacement line; opponent demand derives from the starter
+deficits of teams selecting before the user's next decision; and next-turn risk compares ADP with
+the number of intervening active picks. All component scores are 0–100 and combine deterministically.
+
 ## 5. Important flows
 
 ### League onboarding and sync
@@ -99,11 +109,12 @@ Historical sync handles only ESPN HTTP 404 as season-local; authentication, tran
 normalization, and storage failures still stop the command so a systemic or programming defect is
 not mislabeled as missing upstream history.
 
-### Future recommendation flow
+### Live draft recommendation flow
 
-The target flow is: refresh sources → reconcile identities/timestamps → derive league-relative
-features → generate candidate actions → score scenarios and uncertainty → produce an explanation
-bundle → user decides → retain decision and eventual outcome. No step after source refresh is built.
+The built draft flow is: refresh pick state → load the latest normalized rules and player evidence →
+remove drafted players → reconstruct keeper/drafted rosters → locate the current and next user picks →
+derive league-relative features → score and sort candidates → render a top-10 explanation table →
+user decides. Recommendation history and outcome retention remain future behavior-store work.
 
 ## 6. Security and trust boundaries
 
@@ -133,6 +144,7 @@ PYTHONPATH=src python -m fantasy_assistant.cli discover-leagues --season 2026 --
 PYTHONPATH=src python -m fantasy_assistant.cli sync-league --league primary --season 2026
 PYTHONPATH=src python -m fantasy_assistant.cli sync-draft --league primary --season 2026
 PYTHONPATH=src python -m fantasy_assistant.cli sync-player-evidence --league primary --season 2026
+PYTHONPATH=src python -m fantasy_assistant.cli draft-board --league primary --season 2026 --refresh
 PYTHONPATH=src python -m fantasy_assistant.cli sync-history --league primary
 PYTHONPATH=src python -m unittest discover -s tests -v
 node scripts/compounding-status.mjs
@@ -160,7 +172,8 @@ the schema changes. Retention and backup policy are not yet defined.
   memberships; available ESPN UI/history surfaces expose no alternate IDs; the current identity
   returns 404 for 2016–2017; and one `sync-history` run still saved the complete 2018 league after
   reporting both inaccessible seasons.
-- Draft, trade, waiver, lineup, and behavioral evaluation harnesses are not yet built.
+- Offline draft tests cover latest-snapshot selection, keeper exclusion, roster need, pick horizon,
+  and stable table output. Trade, waiver, lineup, and behavioral evaluation harnesses are not yet built.
 
 ## 9. Active decisions
 
@@ -176,7 +189,7 @@ the schema changes. Retention and backup policy are not yet defined.
 | Player evidence enrichment | US-1.4 | ESPN baseline only | Timestamped multi-source evidence with identity reconciliation | PRD roadmap 2 |
 | Transaction history | US-4.2 | ESPN views probed but no usable event list returned | Versioned manager-action events with evidence | Compounding queue |
 | Queryable history | US-1.4, US-4.* | JSON snapshots only | Local analytical store with migrations | Open decision |
-| Draft engine | US-2.* | Absent | League-aware, stateful draft recommendations | PRD roadmap 3 |
+| Draft enrichment | US-2.* | Deterministic live top-10 board | Durable tiers/preferences, richer evidence, and calibrated intervening-pick predictions | PRD roadmap 3 |
 
 ## 11. Authoritative pointers
 
@@ -188,6 +201,7 @@ the schema changes. Retention and backup policy are not yet defined.
 | League discovery contract | `src/fantasy_assistant/espn/discovery.py` and `tests/fixtures/fan_profile_minimal.json` |
 | Normalized schemas | `src/fantasy_assistant/ingestion/normalize.py` and `tests/test_normalize.py` |
 | Snapshot path contract | `src/fantasy_assistant/ingestion/store.py` |
+| Draft scoring contract | `src/fantasy_assistant/draft.py` and `tests/test_draft.py` |
 | Local runtime state | ignored `config/leagues.toml`, `data/`, and `apps/payouts/outputs/` |
 | Test contract | `PYTHONPATH=src python -m unittest discover -s tests -v` |
 
