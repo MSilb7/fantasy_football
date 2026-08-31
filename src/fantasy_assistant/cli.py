@@ -18,6 +18,11 @@ from fantasy_assistant.config import (
     load_league_profiles,
     write_league_profiles,
 )
+from fantasy_assistant.draft import (
+    load_latest_snapshot,
+    recommend_draft_picks,
+    render_draft_board,
+)
 from fantasy_assistant.espn import (
     DiscoveredLeague,
     ESPNAPIError,
@@ -95,6 +100,22 @@ def _parser() -> argparse.ArgumentParser:
         help="Season to sync; repeat for multiple seasons. Defaults to the profile seasons.",
     )
     sync_history.add_argument("--data-dir", type=Path, default=Path("data"))
+
+    draft_board = subcommands.add_parser(
+        "draft-board",
+        help="Rank the best available players from the latest normalized live-draft data.",
+    )
+    draft_board.add_argument(
+        "--league", required=True, help="Profile name from config/leagues.toml."
+    )
+    draft_board.add_argument("--season", required=True, type=int)
+    draft_board.add_argument("--limit", type=int, default=10)
+    draft_board.add_argument("--data-dir", type=Path, default=Path("data"))
+    draft_board.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Fetch and store the latest ESPN draft state before ranking players.",
+    )
     return parser
 
 
@@ -361,6 +382,62 @@ def _sync_history(args: argparse.Namespace) -> int:
     return 0
 
 
+def _draft_board(args: argparse.Namespace) -> int:
+    profile = _load_profile(args)
+    if profile.team_id is None:
+        raise ConfigurationError(
+            f"League profile {profile.name!r} needs team_id for draft recommendations."
+        )
+    league = load_latest_snapshot(
+        args.data_dir,
+        source="espn",
+        league_id=profile.league_id,
+        season=args.season,
+    )
+    if args.refresh:
+        credentials = load_espn_credentials(dotenv_path=args.dotenv)
+        fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+        raw_draft = ESPNClient(credentials).fetch_draft(
+            season=args.season,
+            league_id=profile.league_id,
+        )
+        draft = normalize_draft_snapshot(
+            raw_draft,
+            season=args.season,
+            fetched_at=fetched_at,
+        )
+        SnapshotStore(args.data_dir).save(
+            source="espn-draft",
+            league_id=profile.league_id,
+            season=args.season,
+            fetched_at=fetched_at,
+            raw=raw_draft,
+            normalized=draft,
+        )
+    else:
+        draft = load_latest_snapshot(
+            args.data_dir,
+            source="espn-draft",
+            league_id=profile.league_id,
+            season=args.season,
+        )
+    players = load_latest_snapshot(
+        args.data_dir,
+        source="espn-player-evidence",
+        league_id=profile.league_id,
+        season=args.season,
+    )
+    board = recommend_draft_picks(
+        league,
+        draft,
+        players,
+        user_team_id=int(profile.team_id),
+        limit=args.limit,
+    )
+    print(render_draft_board(board))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -376,6 +453,8 @@ def main(argv: list[str] | None = None) -> int:
             return _sync_player_evidence(args)
         if args.command == "sync-history":
             return _sync_history(args)
+        if args.command == "draft-board":
+            return _draft_board(args)
     except (ConfigurationError, ESPNAPIError, OSError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
