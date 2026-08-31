@@ -33,5 +33,5 @@ third-place award is removed next, and first and second split the remaining plac
 workbook's Parameters tab verifies that weekly highs plus all three placement payouts equal the
 total pot.
 
-Reports generated before commit `d2c0546` are not rewritten automatically. Re-run the 2025 notebook
+Reports generated before commit `439a486` are not rewritten automatically. Re-run the 2025 notebook
 to replace a prior local workbook with the corrected allocation.

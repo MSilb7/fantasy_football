@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
@@ -17,6 +17,14 @@ class ConfigurationError(ValueError):
 
 
 @dataclass(frozen=True)
+class LeagueIdentity:
+    """ESPN identifiers used for one season of a logical league."""
+
+    league_id: str
+    team_id: str | None = None
+
+
+@dataclass(frozen=True)
 class LeagueProfile:
     """Non-secret identity and preferences for one fantasy league."""
 
@@ -26,6 +34,18 @@ class LeagueProfile:
     team_id: str | None = None
     team_name: str | None = None
     seasons: tuple[int, ...] = ()
+    season_identities: Mapping[int, LeagueIdentity] = field(default_factory=dict)
+
+    def identity_for_season(self, season: int) -> LeagueIdentity:
+        """Resolve ESPN IDs for a season, falling back to the profile defaults."""
+
+        identity = self.season_identities.get(season)
+        if identity is None:
+            return LeagueIdentity(league_id=self.league_id, team_id=self.team_id)
+        return LeagueIdentity(
+            league_id=identity.league_id,
+            team_id=identity.team_id if identity.team_id is not None else self.team_id,
+        )
 
 
 @dataclass(frozen=True)
@@ -70,6 +90,37 @@ def load_league_profiles(path: Path) -> dict[str, LeagueProfile]:
         league_name = str(raw["league_name"]).strip() if raw.get("league_name") else None
         team_id = str(raw["team_id"]).strip() if raw.get("team_id") is not None else None
         team_name = str(raw["team_name"]).strip() if raw.get("team_name") else None
+        raw_season_identities = raw.get("season_identities", {})
+        if not isinstance(raw_season_identities, dict):
+            raise ConfigurationError(
+                f"League profile {name!r} season_identities must be a TOML table."
+            )
+        season_identities: dict[int, LeagueIdentity] = {}
+        for raw_season, raw_identity in raw_season_identities.items():
+            try:
+                season = int(raw_season)
+            except (TypeError, ValueError) as error:
+                raise ConfigurationError(
+                    f"League profile {name!r} has invalid identity season {raw_season!r}."
+                ) from error
+            if not isinstance(raw_identity, dict):
+                raise ConfigurationError(
+                    f"League profile {name!r} identity for {season} must be a TOML table."
+                )
+            season_league_id = str(raw_identity.get("league_id", "")).strip()
+            if not season_league_id:
+                raise ConfigurationError(
+                    f"League profile {name!r} identity for {season} is missing league_id."
+                )
+            season_team_id = (
+                str(raw_identity["team_id"]).strip()
+                if raw_identity.get("team_id") is not None
+                else None
+            )
+            season_identities[season] = LeagueIdentity(
+                league_id=season_league_id,
+                team_id=season_team_id,
+            )
         profiles[name] = LeagueProfile(
             name=name,
             league_id=league_id,
@@ -77,6 +128,7 @@ def load_league_profiles(path: Path) -> dict[str, LeagueProfile]:
             team_id=team_id,
             team_name=team_name,
             seasons=seasons,
+            season_identities=season_identities,
         )
     return profiles
 
@@ -118,6 +170,18 @@ def write_league_profiles(
             lines.append(f"team_name = {json.dumps(profile.team_name, ensure_ascii=False)}")
         lines.append(f"seasons = [{', '.join(str(season) for season in profile.seasons)}]")
         lines.append("")
+        for season, identity in sorted(profile.season_identities.items()):
+            lines.extend(
+                [
+                    f'[leagues.{name}.season_identities."{season}"]',
+                    f"league_id = {json.dumps(identity.league_id, ensure_ascii=False)}",
+                ]
+            )
+            if identity.team_id is not None:
+                lines.append(
+                    f"team_id = {json.dumps(identity.team_id, ensure_ascii=False)}"
+                )
+            lines.append("")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(

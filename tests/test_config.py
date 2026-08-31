@@ -4,6 +4,7 @@ import unittest
 
 from fantasy_assistant.config import (
     ConfigurationError,
+    LeagueIdentity,
     LeagueProfile,
     load_espn_credentials,
     load_league_profiles,
@@ -50,6 +51,52 @@ class ConfigTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ConfigurationError, "already exists"):
                 write_league_profiles(path, profiles)
+
+    def test_loads_and_resolves_season_specific_identities(self) -> None:
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "league_profiles_season_identities.toml"
+        )
+
+        profile = load_league_profiles(fixture)["example"]
+
+        self.assertEqual(
+            profile.identity_for_season(2016),
+            LeagueIdentity(league_id="7000", team_id="7"),
+        )
+        self.assertEqual(
+            profile.identity_for_season(2017),
+            LeagueIdentity(league_id="8000", team_id="8"),
+        )
+        self.assertEqual(
+            profile.identity_for_season(2018),
+            LeagueIdentity(league_id="9000", team_id="9"),
+        )
+
+    def test_writes_season_specific_identities(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "leagues.toml"
+            write_league_profiles(
+                path,
+                {
+                    "example": LeagueProfile(
+                        name="example",
+                        league_id="9000",
+                        team_id="9",
+                        seasons=(2016, 2017, 2018),
+                        season_identities={
+                            2016: LeagueIdentity(league_id="7000", team_id="7"),
+                            2017: LeagueIdentity(league_id="8000", team_id="8"),
+                        },
+                    )
+                },
+            )
+
+            profile = load_league_profiles(path)["example"]
+
+        self.assertEqual(profile.identity_for_season(2016).league_id, "7000")
+        self.assertEqual(profile.identity_for_season(2018).league_id, "9000")
 
     def test_environment_credentials_override_dotenv(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

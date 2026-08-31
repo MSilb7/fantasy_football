@@ -34,6 +34,7 @@ PYTHONPATH=src python -m fantasy_assistant.cli doctor
 PYTHONPATH=src python -m fantasy_assistant.cli sync-league --league primary --season 2026
 PYTHONPATH=src python -m fantasy_assistant.cli sync-draft --league primary --season 2026
 PYTHONPATH=src python -m fantasy_assistant.cli sync-player-evidence --league primary --season 2026
+PYTHONPATH=src python -m fantasy_assistant.cli sync-history --league primary
 ```
 
 `discover-leagues` reports league/team identity and draft metadata but never writes cookies. If ESPN
@@ -45,6 +46,11 @@ sync retains each league's scoring, roster, keeper, and draft-order settings. Dr
 ESPN's unfilled future slots from real selections, and player-evidence sync captures league-relative
 availability, ADP, ranks, projections, injury state, and historical actual stats. Neither local
 league data nor credentials are committed.
+
+Historical sync uses the profile's `seasons` list and continues when ESPN returns an inaccessible
+year, leaving earlier snapshots unchanged. If ESPN changed a league or team ID between seasons, add
+the season-specific override shown in `config/leagues.example.toml`; credentials remain shared in
+`.env` and are never duplicated in the profile.
 
 To install the command and optional payout notebook dependencies:
 

@@ -52,6 +52,8 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 - Discover current football league and team memberships from the authenticated ESPN profile —
   **BUILT**
 - Load multiple named league profiles without storing secrets in git — **BUILT**
+- Resolve season-specific league/team identities and continue historical sync across inaccessible
+  seasons — **BUILT**
 - Validate local ESPN credentials without printing them — **BUILT**
 - Fetch reusable ESPN league snapshots through one client — **BUILT**
 - Normalize league settings, managers, teams, rosters, and matchups — **BUILT**
@@ -105,8 +107,9 @@ forecasts, explains trade-offs, and can be refreshed as the draft or season chan
 
 ## 5. Roadmap
 
-1. **League onboarding and data contracts** — auto-discovery and real 2026 league validation are
-   built; continue capturing materially new ESPN shapes as fixtures. Supports US-1.2 and US-1.3.
+1. **League onboarding and data contracts** — auto-discovery, season-specific identity overrides,
+   resilient historical sync, and real 2026 league validation are built; continue capturing
+   materially new ESPN shapes as fixtures. Supports US-1.2 and US-1.3.
 2. **Player evidence layer** — ESPN baseline availability, ADP, ranks, projections, injuries, and
    prior-season actuals are built; add news, deeper history, source comparison, identity
    reconciliation, and confidence. Supports US-1.4.

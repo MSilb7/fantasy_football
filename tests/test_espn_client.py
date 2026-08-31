@@ -1,8 +1,9 @@
 import json
 import unittest
+from urllib.error import HTTPError
 
 from fantasy_assistant.config import ESPNCredentials
-from fantasy_assistant.espn.client import ESPNClient
+from fantasy_assistant.espn.client import ESPNAPIError, ESPNClient
 
 
 class _Response:
@@ -87,6 +88,21 @@ class ESPNClientTests(unittest.TestCase):
         client.fetch_draft(season=2025, league_id="12345")
 
         self.assertIn("view=mDraftDetail", observed["request"].full_url)
+
+    def test_http_errors_preserve_status_without_exposing_credentials(self) -> None:
+        def opener(request: object, *, timeout: float) -> _Response:
+            raise HTTPError(request.full_url, 404, "Not Found", {}, None)
+
+        client = ESPNClient(
+            ESPNCredentials(espn_s2="private-cookie", swid="{private-id}"),
+            opener=opener,
+        )
+
+        with self.assertRaises(ESPNAPIError) as raised:
+            client.fetch_league(season=2016, league_id="12345")
+
+        self.assertEqual(raised.exception.status_code, 404)
+        self.assertNotIn("private-cookie", str(raised.exception))
 
 
 if __name__ == "__main__":
